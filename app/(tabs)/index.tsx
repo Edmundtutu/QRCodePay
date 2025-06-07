@@ -13,25 +13,8 @@ import { StyleSheet } from 'react-native';
  * or the results view based on whether a QR code has been scanned.
  */
 export default function HomeScreen() {
-  const [scannedData, setScannedData] = useState<ParsedQRData | null>(null);
-
-  const handleScan = (data: string) => {
-    const parsedData = parseQRContent(data);
-    setScannedData(parsedData);
-  };
-
-  const handleScanAgain = () => {
-    setScannedData(null);
-  };
-
   return (
-    <ThemedView style={styles.container}>
-      {scannedData ? (
-        <ResultDisplay data={scannedData} onScanAgain={handleScanAgain} />
-      ) : (
-        <QRScanner onScan={handleScan} />
-      )}
-    </ThemedView>
+    <QRScanner onScan={() => {}} />
   );
 }
 

@@ -1,5 +1,5 @@
 export interface ParsedQRData {
-  type: 'text' | 'url' | 'email' | 'phone' | 'wifi' | 'contact' | 'apk';
+  type: 'text' | 'url' | 'email' | 'phone' | 'wifi' | 'contact' | 'apk' | 'service';
   content: string;
   metadata?: {
     fileName?: string;
@@ -10,12 +10,13 @@ export interface ParsedQRData {
     name?: string;
     email?: string;
     phone?: string;
+    serviceType?: string;
   };
 }
 
 export const parseQRContent = (data: string): ParsedQRData => {
   // Check for APK links
-  if (data.includes('.apk') || data.includes('google.drive.myappapk.debug')) {
+  if (data.includes('.apk') || data.includes('https://drive.google.com/file/d/1FO-TShzf2xBUs34e8Sdr5MVpgY2i3M4x/view?usp=drive_link')) {
     return {
       type: 'apk',
       content: data,
@@ -91,10 +92,23 @@ export const parseQRContent = (data: string): ParsedQRData => {
       },
     };
   }
+  // check for a service code:
+  if (data.startsWith('service:')) {
+    const serviceData = data.substring(8).split(';');
+    const serviceType = serviceData[0];
+    const serviceContent = serviceData.slice(1).join(';');
 
+    return {
+      type: 'text',
+      content: serviceContent,
+      metadata: {
+        fileName: serviceType,
+      },
+    };
+  }
   // Default to plain text
   return {
     type: 'text',
     content: data,
   };
-}; 
+};
