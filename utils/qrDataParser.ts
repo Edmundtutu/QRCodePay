@@ -1,5 +1,5 @@
 export interface ParsedQRData {
-  type: 'text' | 'url' | 'email' | 'phone' | 'wifi' | 'contact' | 'apk' | 'service';
+  type: 'text' | 'url' | 'email' | 'phone' | 'wifi' | 'contact' | 'apk' | 'service' | 'product';
   content: string;
   metadata?: {
     fileName?: string;
@@ -11,6 +11,7 @@ export interface ParsedQRData {
     email?: string;
     phone?: string;
     serviceType?: string;
+    serialNumber?: string;
   };
 }
 

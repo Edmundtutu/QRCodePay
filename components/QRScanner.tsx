@@ -1,17 +1,23 @@
+import { NavigationProp } from '@/types/navigation';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { Camera, CameraView } from 'expo-camera';
-import { parseQRContent } from '../utils/qrDataParser';
-import { ResultDisplay } from './ResultDisplay';
-// Audio feedback is disabled since expo-audio is being used instead of expo-av
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, Vibration, View } from 'react-native';
+import { useCart } from '../contexts/CartContext';
+import { getProductBySerial } from '../services/api';
+import { parseQRContent } from '../utils/qrDataParser';
+import { ResultDisplay } from './ResultDisplay';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 
 interface QRScannerProps {
-  onScan: (data: string) => void;
+  onScan?: (data: string) => void;
 }
 
-export const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
+export const QRScanner: React.FC<QRScannerProps> = ({ onScan = () => {} }) => {
+  const navigation = useNavigation<NavigationProp>();
+  const { items, addItem } = useCart() || { items: [], addItem: () => {} };
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scannedData, setScannedData] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(true);
@@ -21,6 +27,24 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
   // Animation for scan feedback
   const scanAnimation = useRef(new Animated.Value(0)).current;
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          style={styles.cartIcon}
+          onPress={() => navigation.navigate('Cart')}
+        >
+          <MaterialIcons name="shopping-cart" size={24} color="#ffffff" />
+          {items.length > 0 && (
+            <View style={styles.cartBadge}>
+              <ThemedText style={styles.badgeText}>{items.length}</ThemedText>
+            </View>
+          )}
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, items.length]);
 
   useEffect(() => {
     const getPermissions = async () => {
@@ -67,17 +91,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
 
     // Haptic feedback
     Vibration.vibrate(100);
-
-    // Audio feedback (optional - using system sound)
-    try {
-      // Using system sound instead of custom sound
-      Vibration.vibrate(100);
-    } catch (error) {
-      console.log('Audio feedback not available');
-    }
   };
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
+    if (!data) return;
+    
     // Prevent multiple rapid scans
     if (scanCooldown || !isScanning || scannedData) {
       return;
@@ -102,6 +120,12 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
     setTimeout(() => {
       setScanCooldown(false);
     }, 1000);
+
+    // If it's a product QR code, try to add it to cart
+    const product = getProductBySerial(data);
+    if (product) {
+      addItem(product);
+    }
   };
 
   const handleConfirm = () => {
@@ -157,72 +181,73 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
         barcodeScannerSettings={{ 
           barcodeTypes: ['qr', 'ean13', 'code128', 'code39', 'pdf417'] 
         }}
+      />
+      
+      {/* Flash toggle button */}
+      <TouchableOpacity
+        style={styles.flashButton}
+        onPress={toggleFlash}
       >
-        <View style={styles.overlay}>
-          {/* Scanning area with corners */}
-          <View style={styles.scanAreaContainer}>
-            <Animated.View 
-              style={[
-                styles.scanArea,
-                {
-                  opacity: scanAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1, 0.3],
-                  }),
-                  borderColor: scannedData ? '#4CAF50' : '#fff',
-                }
-              ]}
-            >
-              {/* Corner indicators */}
-              <View style={[styles.corner, styles.topLeft]} />
-              <View style={[styles.corner, styles.topRight]} />
-              <View style={[styles.corner, styles.bottomLeft]} />
-              <View style={[styles.corner, styles.bottomRight]} />
-              
-              {/* Animated scan line */}
-              {isScanning && !scannedData && (
-                <Animated.View
-                  style={[
-                    styles.scanLine,
-                    {
-                      transform: [
-                        {
-                          translateY: scanLineAnimation.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [-125, 125],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                />
-              )}
-            </Animated.View>
-          </View>
+        <ThemedText style={styles.flashButtonText}>
+          {flashMode === 'off' ? '🔦' : '💡'}
+        </ThemedText>
+      </TouchableOpacity>
 
-          {/* Instructions */}
-          <View style={styles.instructionContainer}>
-            <ThemedText style={styles.instructionText}>
-              {scannedData 
-                ? 'Code scanned successfully!' 
-                : isScanning 
-                ? 'Position the code within the frame'
-                : 'Processing...'
+      {/* Overlay container */}
+      <View style={styles.overlay}>
+        {/* Scanning area with corners */}
+        <View style={styles.scanAreaContainer}>
+          <Animated.View 
+            style={[
+              styles.scanArea,
+              {
+                opacity: scanAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 0.3],
+                }),
+                borderColor: scannedData ? '#4CAF50' : '#fff',
               }
-            </ThemedText>
-          </View>
-
-          {/* Flash toggle button */}
-          <TouchableOpacity 
-            style={styles.flashButton} 
-            onPress={toggleFlash}
+            ]}
           >
-            <ThemedText style={styles.flashButtonText}>
-              {flashMode === 'off' ? '🔦' : '💡'}
-            </ThemedText>
-          </TouchableOpacity>
+            {/* Corner indicators */}
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
+            
+            {/* Animated scan line */}
+            {isScanning && !scannedData && (
+              <Animated.View
+                style={[
+                  styles.scanLine,
+                  {
+                    transform: [
+                      {
+                        translateY: scanLineAnimation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-125, 125],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            )}
+          </Animated.View>
         </View>
-      </CameraView>
+
+        {/* Instructions */}
+        <View style={styles.instructionContainer}>
+          <ThemedText style={styles.instructionText}>
+            {scannedData 
+              ? 'Code scanned successfully!' 
+              : isScanning 
+              ? 'Position the code within the frame'
+              : 'Processing...'
+            }
+          </ThemedText>
+        </View>
+      </View>
 
       {/* Result display overlay */}
       {scannedData && (
@@ -250,24 +275,34 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
   },
   camera: {
-    width: '100%',
-    height: '100%',
-  },
-  overlayPanel: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
-    zIndex: 100,
+    flex: 1,
   },
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  flashButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 25,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  flashButtonText: {
+    fontSize: 20,
+  },
   scanAreaContainer: {
+    width: '80%',
+    aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -335,78 +370,44 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
   },
-  flashButton: {
+  overlayPanel: {
     position: 'absolute',
-    top: 50,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 25,
-    width: 50,
-    height: 50,
+    bottom: 40,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+  },
+  cartIcon: {
+    marginRight: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cartBadge: {
+    position: 'absolute',
+    right: -5,
+    top: -5,
+    backgroundColor: '#4CAF50',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  flashButtonText: {
-    fontSize: 20,
-  },
-  resultPanel: {
-    position: 'absolute',
-    bottom: 30,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  resultTitle: {
-    fontSize: 18,
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: 'bold',
-    color: '#4CAF50',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  dataContainer: {
-    marginBottom: 20,
-  },
-  dataLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 5,
-  },
-  dataText: {
-    fontSize: 14,
-    color: '#666',
-    backgroundColor: '#f5f5f5',
-    padding: 10,
-    borderRadius: 8,
-    fontFamily: 'monospace',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
   },
   button: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  confirmButton: {
     backgroundColor: '#4CAF50',
-  },
-  rescanButton: {
-    backgroundColor: '#2196F3',
+    padding: 15,
+    borderRadius: 8,
+    marginVertical: 10,
   },
   buttonText: {
     color: '#fff',
-    fontWeight: '600',
     fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

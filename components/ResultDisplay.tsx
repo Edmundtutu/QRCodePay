@@ -18,15 +18,23 @@
  * @param {Function} props.onScanAgain - Callback function to start a new scan
  */
 
+import { NavigationProp } from '@/types/navigation';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import React from 'react';
-import { Linking, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Linking, StyleSheet, TouchableOpacity, View, ViewStyle } from 'react-native';
+import { useCart } from '../contexts/CartContext';
+import { getProductBySerial } from '../services/api';
 import { ParsedQRData } from '../utils/qrDataParser';
 import { APKHandler } from './APKHandler';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
-import { MaterialIcons } from '@expo/vector-icons';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { FontAwesome5 } from '@expo/vector-icons';
+
+interface ResultDisplayProps {
+  data: ParsedQRData;
+  onScanAgain: () => void;
+  style?: ViewStyle;
+}
 
 // Icon components using vector icons
 const OpenIcon = () => (
@@ -45,13 +53,19 @@ const ScanIcon = () => (
   <MaterialIcons name="refresh" size={20} color="#007AFF" />
 );
 
-interface ResultDisplayProps {
-  data: ParsedQRData;
-  onScanAgain: () => void;
-  style?: any;
-}
-
 export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain, style }) => {
+  const navigation = useNavigation<NavigationProp>();
+  const { addItem } = useCart();
+
+  const handleAddToCart = () => {
+    if (data.type === 'product' && data.metadata) {
+      const product = getProductBySerial(data.content);
+      if (product) {
+        addItem(product);
+      }
+    }
+  };
+
   // Handle actions based on content type
   const handleAction = async () => {
     switch (data.type) {
@@ -89,6 +103,28 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
   // Render content based on QR code type
   const renderContent = () => {
     switch (data.type) {
+      case 'product':
+        const product = getProductBySerial(data.content);
+        if (product) {
+          return (
+            <View style={styles.contentSection}>
+              <View style={styles.iconTextContainer}>
+                <MaterialIcons name="shopping-cart" size={20} color="#ffffff" />
+                <ThemedText style={styles.titleText}>Product Found</ThemedText>
+              </View>
+              <ThemedText style={styles.contentText}>{product.name}</ThemedText>
+              <ThemedText style={styles.contentText}>Price: ${product.price.toFixed(2)}</ThemedText>
+              <TouchableOpacity 
+                style={styles.addToCartButton}
+                onPress={handleAddToCart}
+              >
+                <ThemedText style={styles.addToCartText}>Add to Cart</ThemedText>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+        return null;
+        
       case 'apk':
         return <APKHandler data={data} />;
       
@@ -96,9 +132,9 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
         return (
           <View style={styles.contentSection}>
             <View style={styles.iconTextContainer}>
-          <MaterialIcons name="link" size={20} color="#ffffff" />
-          <ThemedText style={styles.titleText}>URL Detected</ThemedText>
-        </View>
+              <MaterialIcons name="link" size={20} color="#ffffff" />
+              <ThemedText style={styles.titleText}>URL Detected</ThemedText>
+            </View>
             <ThemedText style={styles.contentText}>{data.content}</ThemedText>
             {data.metadata?.domain && (
               <ThemedText style={styles.metadataText}>Domain: {data.metadata.domain}</ThemedText>
@@ -110,9 +146,9 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
         return (
           <View style={styles.contentSection}>
             <View style={styles.iconTextContainer}>
-          <MaterialIcons name="email" size={20} color="#ffffff" />
-          <ThemedText style={styles.titleText}>Email Address</ThemedText>
-        </View>
+              <MaterialIcons name="email" size={20} color="#ffffff" />
+              <ThemedText style={styles.titleText}>Email Address</ThemedText>
+            </View>
             <ThemedText style={styles.contentText}>{data.content}</ThemedText>
           </View>
         );
@@ -121,9 +157,9 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
         return (
           <View style={styles.contentSection}>
             <View style={styles.iconTextContainer}>
-          <MaterialIcons name="phone" size={20} color="#ffffff" />
-          <ThemedText style={styles.titleText}>Phone Number</ThemedText>
-        </View>
+              <MaterialIcons name="phone" size={20} color="#ffffff" />
+              <ThemedText style={styles.titleText}>Phone Number</ThemedText>
+            </View>
             <ThemedText style={styles.contentText}>{data.content}</ThemedText>
           </View>
         );
@@ -132,9 +168,9 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
         return (
           <View style={styles.contentSection}>
             <View style={styles.iconTextContainer}>
-          <MaterialCommunityIcons name="wifi" size={20} color="#ffffff" />
-          <ThemedText style={styles.titleText}>WiFi Network</ThemedText>
-        </View>
+              <MaterialCommunityIcons name="wifi" size={20} color="#ffffff" />
+              <ThemedText style={styles.titleText}>WiFi Network</ThemedText>
+            </View>
             <ThemedText style={styles.contentText}>SSID: {data.metadata?.ssid}</ThemedText>
             {data.metadata?.password && (
               <ThemedText style={styles.contentText}>Password: {data.metadata.password}</ThemedText>
@@ -146,9 +182,9 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
         return (
           <View style={styles.contentSection}>
             <View style={styles.iconTextContainer}>
-          <MaterialCommunityIcons name="account-details" size={20} color="#ffffff" />
-          <ThemedText style={styles.titleText}>Contact Information</ThemedText>
-        </View>
+              <MaterialCommunityIcons name="account-details" size={20} color="#ffffff" />
+              <ThemedText style={styles.titleText}>Contact Information</ThemedText>
+            </View>
             {data.metadata?.name && (
               <ThemedText style={styles.contentText}>Name: {data.metadata.name}</ThemedText>
             )}
@@ -160,15 +196,16 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
             )}
           </View>
         );
-
+      
       case 'service':
+        if (!data.metadata) return null;
         return (
           <View style={styles.contentSection}>
             <View style={styles.iconTextContainer}>
-          <MaterialIcons name="settings" size={20} color="#ffffff" />
-          <ThemedText style={styles.titleText}>Service Code</ThemedText>
-        </View>
-            <ThemedText style={styles.contentText}>Type: {data.metadata?.serviceType}</ThemedText>
+              <MaterialIcons name="settings" size={20} color="#ffffff" />
+              <ThemedText style={styles.titleText}>Service Code</ThemedText>
+            </View>
+            <ThemedText style={styles.contentText}>Type: {data.metadata.serviceType}</ThemedText>
             <ThemedText style={styles.contentText}>Content: {data.content}</ThemedText>
           </View>
         );
@@ -177,9 +214,9 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
         return (
           <View style={styles.contentSection}>
             <View style={styles.iconTextContainer}>
-          <MaterialIcons name="description" size={20} color="#ffffff" />
-          <ThemedText style={styles.titleText}>Text Content</ThemedText>
-        </View>
+              <MaterialIcons name="description" size={20} color="#ffffff" />
+              <ThemedText style={styles.titleText}>Text Content</ThemedText>
+            </View>
             <ThemedText style={styles.contentText}>{data.content}</ThemedText>
           </View>
         );
@@ -223,7 +260,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
           onPress={onScanAgain}
           activeOpacity={0.8}
         >
-          <ScanIcon />
+          <MaterialIcons name="qr-code-scanner" size={20} color="#007AFF" />
           <ThemedText style={styles.scanButtonText}>Scan Again</ThemedText>
         </TouchableOpacity>
       </View>
@@ -231,25 +268,14 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ data, onScanAgain,
   );
 };
 
-// Enhanced styles with modern design principles
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1a1a1a', // Dark background for high contrast
+    backgroundColor: '#1a1a1a',
     borderRadius: 16,
-    width: '92%',
-    alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#333',
+    padding: 20,
+    margin: 10,
+    elevation: 5,
   },
-  
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -259,7 +285,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#333',
   },
-
   scanIndicator: {
     width: 8,
     height: 8,
@@ -267,45 +292,51 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     marginRight: 12,
   },
-
   headerText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff', // High contrast white text
+    color: '#ffffff',
   },
-
   contentContainer: {
     padding: 20,
   },
-
   contentSection: {
-    marginBottom: 8,
+    backgroundColor: '#2d2d2d',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-
   iconTextContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   titleText: {
-    fontSize: 15,
-    fontWeight: '600',
     color: '#ffffff',
-    marginLeft: 8,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 10,
   },
   contentText: {
     fontSize: 14,
-    color: '#e0e0e0', // Slightly muted but still high contrast
-    marginBottom: 6,
+    color: '#e0e0e0', 
+    marginBottom: 5,
     lineHeight: 20,
   },
-
   metadataText: {
+    color: '#b0b0b0',
     fontSize: 14,
-    color: '#b0b0b0', // Secondary text color
+    marginBottom: 5,
     fontStyle: 'italic',
   },
-
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -313,25 +344,21 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     gap: 12,
   },
-
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    padding: 15,
     borderRadius: 12,
     flex: 1,
     minHeight: 48,
   },
-
   actionButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
   },
-
   scanAgainButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -345,55 +372,26 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 48,
   },
-
   scanButtonText: {
     color: '#007AFF',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
   },
-
-  // Icon styles (simple geometric icons)
-  iconContainer: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  icon: {
-    width: 16,
-    height: 16,
-  },
-
-  openIcon: {
-    borderWidth: 2,
-    borderColor: '#ffffff',
-    borderRadius: 3,
-    backgroundColor: 'transparent',
-  },
-
-  emailIcon: {
-    borderWidth: 2,
-    borderColor: '#ffffff',
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
-    backgroundColor: 'transparent',
-  },
-
-  phoneIcon: {
-    borderWidth: 2,
-    borderColor: '#ffffff',
+  addToCartButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
     borderRadius: 8,
-    backgroundColor: 'transparent',
+    marginTop: 10,
+    alignItems: 'center',
   },
-
-  scanIcon: {
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    borderRadius: 2,
-    backgroundColor: 'transparent',
+  addToCartText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
+  // Removed duplicate and unused styles
 });
+
+export default ResultDisplay;
